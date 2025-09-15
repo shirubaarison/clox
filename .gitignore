@@ -1,0 +1,6 @@
+obj/
+clox
+
+*.o
+compile_commands.json
+.cache
