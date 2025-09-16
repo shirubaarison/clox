@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -105,7 +106,11 @@ void *realloc(void *ptr, size_t size) {
 }
 
 void *calloc(size_t nelem, size_t elsize) {
-  size_t size = nelem * elsize; // TODO: check for overflow
+  if (nelem > SIZE_MAX / elsize) {
+    return NULL; // overflow
+  }
+  size_t size = nelem * elsize;
+
   void *ptr = malloc(size);
   memset(ptr, 0, size);
 
