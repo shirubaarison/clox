@@ -7,17 +7,17 @@
 
 #include "memory.h"
 
-block_meta *find_free_block(block_meta **last, size_t size) {
-  block_meta *curr = global_base;
-  while (curr && !(curr->free && curr->size >= size)) {
+Header *find_free_block(Header **last, size_t size) {
+  Header *curr = global_base;
+  while (curr && !(curr->Header.free && curr->Header.size >= size)) {
     *last = curr;
-    curr = curr->next;
+    curr = curr->Header.next;
   }
   return curr;
 }
 
-block_meta *request_space(block_meta *last, size_t size) {
-  block_meta *block;
+Header *request_space(Header *last, size_t size) {
+  Header *block;
   block = sbrk(0);
   void *request = sbrk(size + META_SIZE);
   assert((void *)block == request);
@@ -27,18 +27,19 @@ block_meta *request_space(block_meta *last, size_t size) {
   }
 
   if (last)
-    last->next = block;
+    last->Header.next = block;
 
-  block->size = size;
-  block->next = NULL;
-  block->free = 0;
-  block->magic = 0x12345678;
+  block->Header.size = size;
+  block->Header.next = NULL;
+  block->Header.prev = NULL;
+  block->Header.free = 0;
+  block->Header.magic = 0x12345678;
 
   return block;
 }
 
 void *malloc(size_t size) {
-  block_meta *block;
+  Header *block;
 
   if (size <= 0)
     return NULL;
@@ -51,34 +52,36 @@ void *malloc(size_t size) {
 
     global_base = block;
   } else {
-    block_meta *last = global_base;
+    Header *last = global_base;
     block = find_free_block(&last, size);
     if (!block) {
       // failed to find a free block
       block = request_space(last, size);
       if (!block)
         return NULL;
+
     } else {
-      block->free = 0;
-      block->magic = 0x77777777;
+      block->Header.free = 0;
+      block->Header.magic = 0x77777777;
     }
   }
 
-  return (block +
-          1); // return region after block_meta, + 1 here means block_meta size
+  // return region after Header, + 1 here means Header size
+  return (block + 1);
 }
 
-block_meta *get_block_ptr(void *ptr) { return (block_meta *)ptr - 1; }
+Header *get_header_ptr(void *ptr) { return (Header *)ptr - 1; }
 
 void free(void *ptr) {
   if (!ptr)
     return;
 
-  block_meta *block_ptr = get_block_ptr(ptr);
-  assert(block_ptr->free == 0);
-  assert(block_ptr->magic == 0x77777777 || block_ptr->magic == 0x12345678);
-  block_ptr->free = 1;
-  block_ptr->magic = 0x55555555;
+  Header *header_ptr = get_header_ptr(ptr);
+  assert(header_ptr->Header.free == 0);
+  assert(header_ptr->Header.magic == 0x77777777 ||
+         header_ptr->Header.magic == 0x12345678);
+  header_ptr->Header.free = 1;
+  header_ptr->Header.magic = 0x55555555;
 }
 
 void *realloc(void *ptr, size_t size) {
@@ -86,8 +89,8 @@ void *realloc(void *ptr, size_t size) {
   if (!ptr)
     return malloc(size);
 
-  block_meta *block_ptr = get_block_ptr(ptr);
-  if (block_ptr->size >= size)
+  Header *header_ptr = get_header_ptr(ptr);
+  if (header_ptr->Header.size >= size)
     return ptr; // enough space
 
   void *new_ptr;
@@ -95,7 +98,7 @@ void *realloc(void *ptr, size_t size) {
   if (!new_ptr)
     return NULL;
 
-  memcpy(new_ptr, ptr, block_ptr->size);
+  memcpy(new_ptr, ptr, header_ptr->Header.size);
   free(ptr);
 
   return new_ptr;
