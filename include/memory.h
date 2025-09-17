@@ -21,14 +21,15 @@ typedef union header {
     union header *prev;
     int free;
     int magic; // For debbuging only
-  } Header;
+  } s;
 
   Align x; // is double long heavier than the previous struct?
 } Header;
 
 #define META_SIZE sizeof(Header)
 
-void *global_base = NULL; // linked list head
+static Header base;
+static Header *list_head = NULL; // linked list head
 
 Header *find_free_block(Header **last, size_t size);
 Header *request_space(Header *last, size_t size);
